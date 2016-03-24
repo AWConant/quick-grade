@@ -26,7 +26,6 @@ ignore = ['my_labs', 'jk', 'lauri', 'inputs', 'dpike1', 'rmagier1', 'schen4']
 
 # Add .appends here if you need to avoid a particular directory
 #ignore.append()
-ignore.append('hshim1')
 
 # Clean up any leftover digest and dump files.
 os.system('rm -f '+digestnum)
