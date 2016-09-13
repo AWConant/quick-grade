@@ -1,85 +1,77 @@
 #!/usr/bin/env python
 
 import os
-import os.path
-import glob
-import time
 import sys
+import time
+import glob
+import traceback
 
-'''
-Script to automatically grade cs21 assignments. Takes a lab number and a
-username; dumps result of input files to a file called digest. 
-'''
+from os import system
 
-if len(sys.argv) != 3:
-    print 'Usage: ./quickgrade.py <lab number (01 e.g.)> <your username>'
-    exit(1)
+if len(sys.argv) != 2:
+    print 'Usage: ./quickgrade.py <lab number (01 e.g.)>'
+    sys.exit()
 
 lab_num = sys.argv[1]
-username = sys.argv[2]
-pathstring = '/home/'+username+'/gradingcs21-s16/'
-digestnum = 'digest'+lab_num
-directories = sorted(os.listdir('.'))
+digest = os.getcwd() + '/digest' + lab_num
+direcs = next(os.walk('.'))[1]
 
-# Directories for instructors, ninjas, and program functionality.
-ignore = ['my_labs', 'jk', 'lauri', 'inputs', 'dpike1', 'rmagier1', 'schen4']
+# Directories for instructors, ninjas, and script functionality
+ignore = ['my_labs', 'jk', 'lauri', 'inputs']
 
-# Add .appends here if you need to avoid a particular directory
-#ignore.append()
+system('rm -f %s' % digest)
 
-# Clean up any leftover digest and dump files.
-os.system('rm -f '+digestnum)
-os.system('rm -f dump')
+for username in direcs:
+    if username in ignore:
+        continue
 
-for entry in directories:
-    if os.path.isdir(entry) and entry not in ignore:
-        os.chdir(entry + '/labs/' + lab_num)
-        print '-----Entering %s-----' % entry
-        os.system('cp -r '+pathstring+'/inputs/lab'+lab_num+'/* .')
-        os.system('rm -f autograde')
-        
-        # Assemble list of testfiles from the names of the inputfiles.
-        # Assumes all testfiles have at least one associated inputfile.
-        testfiles = set()
-        inputfiles = os.listdir(pathstring+'inputs/lab'+lab_num)
-        for inputfile in inputfiles:
-            testfiles.add(inputfile[:-1] + '.py')
+    print '-----Beginning %s-----' % username
 
-        # Fixes capitalization issues with filenames
-        for f in glob.glob('*.py'):
-            result = [fname for fname in testfiles if fname.lower() == f.lower()]
-            if result:
-                os.system('mv '+f+' '+result[0])
-            else:
-                os.system('echo '+entry+' >> '+pathstring+'dump')
+    lab_dir = '%s/labs/%s' % (username, lab_num)
+    system('cp -r inputs/%s/* %s' % (lab_num, lab_dir))
 
-        # Test all testfiles with their appropriate inputfiles
-        for testfile in testfiles:
-            for inputfile in inputfiles:
-                if testfile[:-3] in inputfile[:-1]:
-                    os.system('echo "@@@@@@@@@@@@@@@@@@@@" >> autograde')
-                    try:
-                        os.system('(python '+testfile+' < '+inputfile+') >> autograde')
-                    except IOError:
-                        os.system('echo '+entry+' >> '+pathstring+'dump')
+    prog_files = set()
+    input_files = os.listdir('inputs/%s' % lab_num)
+    for f in input_files:
+        prog_files.add(f[:-1] + '.py')
 
-                    os.system('echo $"\n" >> autograde')
-            os.system('echo $"\n\n" >> autograde')
+    os.chdir(lab_dir)
 
-        # Write the contents of each autograde to a digest file
-        # for easy perusal.
-        os.system('echo "##########################################"'+' >> '+pathstring+digestnum)
-        os.system('echo '+entry+' >> '+pathstring+digestnum) 
-        os.system('echo "##########################################"'+' >> '+pathstring+digestnum)
-        if os.path.exists('autograde'):
-            os.system('cat autograde'+' >> '+pathstring+digestnum)
-        else:
-            os.system('echo "No output found."'+' << '+pathstring+digestnum)
+    # Try to fix filenames by doing the following:
+    # - Rename files to lowercase
+    # - If intended name is in the student's name for the file, change to the
+    #   intended name.
+    for f in glob.glob('*.py'):
+        system('mv -f %s %s 2>/dev/null; true' % (f, f.lower()))
+        for pfile in prog_files:
+            if pfile[:-3] in f:
+                system('mv -f %s %s 2>/dev/null; true' % (f, pfile))
 
-        time.sleep(0.1)
+    system('rm -f autograde')
 
-        os.chdir('../../..')
-        print '-----Finished with %s-----\n\n' % entry
+    # Run test inputs against programs
+    for pfile in prog_files:
+        for ifile in input_files:
+            if pfile[:-3] not in ifile[:-1]:
+                continue
+            system('echo "@@@@@@@@@@@@@@@@@@" >> autograde')
+            if system('python %s < %s >> autograde' % (pfile, ifile)):
+                system('echo "!!!Check %s by hand!!!" >> autograde' % pfile)
 
+            system('echo "\n" >> autograde')
 
+        system('echo "\n\n\n" >> autograde')
 
+    # Write autograded output to digest file for easy perusal
+    system('echo "################################" >> %s' %  digest)
+    system('echo %s >> %s' % (username, digest))
+    system('echo "################################" >> %s' % digest)
+    if os.path.exists('autograde'):
+        system('cat autograde >> %s' % digest)
+    else:
+        system('echo "No autograde found." >> %s' % digest)
+
+    time.sleep(0.1)
+
+    os.chdir('../../..')
+    print '-----Done with %s-----\n' % username
