@@ -4,74 +4,125 @@ import os
 import sys
 import time
 import glob
-import traceback
+import itertools
 
 from os import system
 
-if len(sys.argv) != 2:
-    print 'Usage: ./quickgrade.py <lab number (01 e.g.)>'
-    sys.exit()
+def get_roster(fname):
+    '''
+    Given a file of usernames that should be tested, read them into a list
+    and return it.
+    '''
+    roster = []
+    with open(fname, 'r') as f:
+        for line in f:
+            roster.append(line.strip())
+    return roster
 
-lab_num = sys.argv[1]
-digest = os.getcwd() + '/digest' + lab_num
-direcs = next(os.walk('.'))[1]
-
-# Directories for instructors, ninjas, and script functionality
-ignore = ['my_labs', 'jk', 'lauri', 'inputs']
-
-system('rm -f %s' % digest)
-
-for username in direcs:
-    if username in ignore:
-        continue
-
-    print '-----Beginning %s-----' % username
-
-    lab_dir = '%s/labs/%s' % (username, lab_num)
-    system('cp -r inputs/%s/* %s' % (lab_num, lab_dir))
-
-    prog_files = set()
-    input_files = os.listdir('inputs/%s' % lab_num)
-    for f in input_files:
-        prog_files.add(f[:-1] + '.py')
-
-    os.chdir(lab_dir)
-
-    # Try to fix filenames by doing the following:
-    # - Rename files to lowercase
-    # - If intended name is in the student's name for the file, change to the
-    #   intended name.
+def fix_filenames(prog_names):
+    '''
+    Try to fix user's python filenames.
+    '''
     for f in glob.glob('*.py'):
-        system('mv -f %s %s 2>/dev/null; true' % (f, f.lower()))
-        for pfile in prog_files:
-            if pfile[:-3] in f:
-                system('mv -f %s %s 2>/dev/null; true' % (f, pfile))
+        # Rename files to lowercase
+        system('mv -f %s.py %s.py 2>/dev/null; true' % (f, f.lower()))
 
-    system('rm -f autograde')
+        # If intended name is in the student's name for the file, change to
+        # the intended name.
+        for pname in prog_names:
+            if pname in f:
+                system('mv -f %s.py %s.py 2>/dev/null; true' % (f, pname))
 
-    # Run test inputs against programs
-    for pfile in prog_files:
-        for ifile in input_files:
-            if pfile[:-3] not in ifile[:-1]:
-                continue
-            system('echo "@@@@@@@@@@@@@@@@@@" >> autograde')
-            if system('python %s < %s >> autograde' % (pfile, ifile)):
-                system('echo "!!!Check %s by hand!!!" >> autograde' % pfile)
-
-            system('echo "\n" >> autograde')
-
-        system('echo "\n\n\n" >> autograde')
-
-    # Write autograded output to digest file for easy perusal
-    system('echo "################################" >> %s' %  digest)
+def write_to_digest(username, digest):
+    '''
+    Write output to digest file for easy perusal
+    '''
+    system('echo "################################" >> %s' % digest)
     system('echo %s >> %s' % (username, digest))
     system('echo "################################" >> %s' % digest)
-    if os.path.exists('autograde'):
-        system('cat autograde >> %s' % digest)
-    else:
-        system('echo "No autograde found." >> %s' % digest)
+    system('cat autograde >> %s' % digest)
 
-    time.sleep(0.1)
+def test_user(prog_names, input_names):
+    '''
+    Run user's files against the input files. Write output to a file called
+    'autograde' in that user's lab directory.
+    '''
+    # TODO: Solve halting problem
+    # TODO: Improve pname/iname matching
+    # Run test inputs against programs
+    for pname in prog_names:
+        for iname in input_names:
+            if pname not in iname:
+                continue
 
-    os.chdir('../../..')
-    print '-----Done with %s-----\n' % username
+            system('echo "@@@@@@@@@@@@@@@@@@" >> autograde')
+            if system('python %s.py < %s >> autograde' % (pname, iname)):
+                # TODO: Maybe accumulate these in a file.
+                system('echo "\nCHECK %s BY HAND!" >> autograde' % pname)
+
+            system('echo "" >> autograde')
+        system('echo "\n" >> autograde')
+
+def ensure_inputs_direc():
+    labs = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10',
+            '11', '12']
+    if not os.path.isdir('inputs'):
+        os.mkdir('inputs')
+        for lab in labs:
+            os.mkdir('inputs/%s' % lab)
+
+def ensure_digests_direc():
+    if not os.path.isdir('digests'):
+        os.mkdir('digests')
+
+def main():
+    if len(sys.argv) != 3:
+        print('Usage: ./quickgrade.py <lab number (01 e.g.)> <ROSTER file>')
+        sys.exit()
+
+    lab_num = sys.argv[1]
+    roster_file = sys.argv[2]
+
+    ensure_inputs_direc()
+    ensure_digests_direc()
+
+    # Path to large file eventually containing all program output.
+    digest = os.getcwd() + '/digests/digest' + lab_num
+
+    system('rm -f %s' % digest)
+
+    # The filenames for the input test files
+    input_names = os.listdir('inputs/%s' % lab_num)
+
+    # The names of the programs, without .py
+    prog_names = set(name[:-1] for name in input_names)
+
+    for username in get_roster(roster_file):
+        print '##### %s #####' % username
+
+        lab_dir = '%s/labs/%s' % (username, lab_num)
+        system('cp -r inputs/%s/* %s' % (lab_num, lab_dir))
+
+        # Enter user's directory.
+        os.chdir(lab_dir)
+
+        # Attempt to clean up user's filenames.
+        fix_filenames(prog_names)
+
+        system('rm -f autograde')
+
+        # Run user's files on appropriate input files.
+        test_user(prog_names, input_names)
+
+        # Write output to long digest file.
+        write_to_digest(username, digest)
+
+        system('rm -f autograde')
+
+        # Allow for ctrl+c to cancel script
+        time.sleep(0.1)
+
+        # Navigate back up to grading directory.
+        os.chdir('../../..')
+
+main()
