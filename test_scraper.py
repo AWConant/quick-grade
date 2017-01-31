@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 '''
 Scrapes Swarthmore CS21 labs for their input test cases; useful for grading
 purposes. Relies on the assumption that input lines are in blue text wrapped

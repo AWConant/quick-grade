@@ -63,18 +63,6 @@ def test_user(prog_names, input_names):
             system('echo "" >> autograde')
         system('echo "\n" >> autograde')
 
-def ensure_inputs_direc():
-    labs = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10',
-            '11', '12']
-    if not os.path.isdir('inputs'):
-        os.mkdir('inputs')
-        for lab in labs:
-            os.mkdir('inputs/%s' % lab)
-
-def ensure_digests_direc():
-    if not os.path.isdir('digests'):
-        os.mkdir('digests')
-
 def main():
     if len(sys.argv) != 3:
         print('Usage: ./quickgrade.py <lab number (01 e.g.)> <ROSTER file>')
@@ -82,9 +70,6 @@ def main():
 
     lab_num = sys.argv[1]
     roster_file = sys.argv[2]
-
-    ensure_inputs_direc()
-    ensure_digests_direc()
 
     # Path to large file eventually containing all program output.
     digest = os.getcwd() + '/digests/digest' + lab_num
